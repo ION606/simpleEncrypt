@@ -142,8 +142,15 @@
         // the public key of the OTHER USER
         async function encryptMessage(otherUID, message) {
             try {
-                const publicKeyRaw = await sendToServer('getpubkey', otherUID);
-                if (!publicKeyRaw) return alert("ERROR");
+                var publicKeyRaw = await sendToServer('getpubkey', otherUID);
+
+// TODO: REMOVE THIS WHEN PORTING!!!
+                if (!publicKeyRaw) {
+                    localStorage.setItem('sessionid', crypto.randomUUID());
+                    const rCreate = await createAndStoreKey();
+                    if (!rCreate) return alert("ERROR");
+                    publicKeyRaw = await sendToServer('getpubkey', otherUID);
+                }
                 const publicKeyJSON = JSON.parse(publicKeyRaw);
 
                 const encoder = new TextEncoder();
