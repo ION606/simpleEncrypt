@@ -61,7 +61,7 @@
         function getDB() {
             return new Promise(async (resolve, reject) => {
                 if (!('indexedDB' in window)) {
-                    console.warn('IndexedDB not supported');
+                    console.warn('IndexedDB not supported!');
                     return reject();
                 }
 
@@ -211,6 +211,9 @@
 
         // INITIAL THINGS
         async function init() {
+            if (!("TextDecoder" in window)) return alert("Sorry, this browser does not support TextDecoder...");
+            if (!('indexedDB' in window)) return alert('IndexedDB not supported!');
+
             if (!localStorage.getItem('sessionid')) {
                 localStorage.setItem('sessionid', crypto.randomUUID());
                 const storedKey = await createAndStoreKey();
