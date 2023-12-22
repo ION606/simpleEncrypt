@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Ecncryption Chat</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/idb@8/build/umd.js"></script>
+    <script>
+        function sendToServer(relativePath, content) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const sessionId = localStorage.getItem("sessionid");
+                    if (!sessionId) return alert("please refresh window");
+
+                    var req = new XMLHttpRequest();
+                    req.open('POST', `${window.location.origin}/${relativePath}`);
+                    req.setRequestHeader('sid', sessionId);
+                    req.setRequestHeader('pkey', content);
+                    req.onloadend = (ev) => {
+                        resolve(req.response);
+                    }
+                    req.send(content);
+                }
+                catch (err) {
+                    reject(err);
+                }
+            })
+        }
+
+
+        const dbName = 'keyDatabase';
+        const storeName = 'keys';
+        const version = 1;
+        const key = 'privt';
+
+        /*
+        function writeKeyToIDB(key) {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open("keyDatabase", 2);
+                request.onerror = (err) => {
+                    console.error(err);
+                };
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    const objectStore = db.createObjectStore("keys", { keyPath: "keyType" });
+                    objectStore.createIndex("key", "key", { unique: true });
+                    objectStore.transaction.oncomplete = (event) => {
+                        const keyObjStore = db
+                            .transaction("keys", "readwrite")
+                            .objectStore("keys");
+
+                        keyObjStore.add({ keyType: 'prvt', key: "DJDHDJKHKJDHKFJSHFKJDSHFLKJDf" });
+                    };
+                };
+            })
+        }
+        */
+
+        function getDB() {
+            return new Promise(async (resolve, reject) => {
+                if (!('indexedDB' in window)) {
+                    console.warn('IndexedDB not supported');
+                    return reject();
+                }
+
+                const db = await idb.openDB(dbName, version, {
+                    upgrade(db, oldVersion, newVersion, transaction) {
+                        const store = db.createObjectStore(storeName);
+                    }
+                });
+
+                resolve(db);
+            });
+        }
+
+
+        async function writeKeyToIDB(cKey) {
+            try {
+                const db = await getDB();
+                if (!db) return;
+
+                const tx = db.transaction(storeName, 'readwrite');
+                const store = await tx.objectStore(storeName);
+
+                const value = await store.put(cKey, key);
+                await tx.done;
+
+                return true;
+            }
+            catch (err) {
+                console.error(err);
+                return false;
+            }
+        }
+
+        async function demo() {
+            const toSend = document.getElementById('txtinp').value;
+            if (!toSend) return alert("NO TEXT FOUND TO SEND!")
+
+            const encMsg = await encryptMessage("other", toSend);
+            recieve(encMsg);
+        }
+
+        async function recieve(message) { document.getElementById('displayDiv').innerText = await decryptMessage(message); }
+
+        // CRYPTO STUFF
+
+        // for simplicity and aesthetic
+        async function getPrivKey() {
+            return (await getDB())?.transaction(storeName).objectStore(storeName).get(key) || null;
+        }
+
+        async function createAndStoreKey() {
+            try {
+                const keyPair = await window.crypto.subtle.generateKey({
+                    name: "RSA-OAEP",
+                    modulusLength: 2048,
+                    publicExponent: new Uint8Array([1, 0, 1]),
+                    hash: "SHA-256",
+                },
+                    true,
+                    ["encrypt", "decrypt"]
+                );
+
+                const publicKey = await crypto.subtle.exportKey("jwk", keyPair.publicKey);
+                const privateKey = await crypto.subtle.exportKey("jwk", keyPair.privateKey);
+
+                writeKeyToIDB(privateKey);
+
+                // send public key to server
+                const response = await sendToServer('newKey', JSON.stringify(publicKey));
+                return true;
+            } catch (error) {
+                console.error("Error in storing key:", error);
+                return false;
+            }
+        }
+
+
+        // the public key of the OTHER USER
+        async function encryptMessage(otherUID, message) {
+            try {
+                const publicKeyRaw = await sendToServer('getpubkey', otherUID);
+                if (!publicKeyRaw) return alert("ERROR");
+                const publicKeyJSON = JSON.parse(publicKeyRaw);
+
+                const encoder = new TextEncoder();
+                const encodedMessage = encoder.encode(message);
+                const publicKey = await window.crypto.subtle.importKey(
+                    "jwk",
+                    publicKeyJSON,
+                    {
+                        name: "RSA-OAEP",
+                        hash: { name: "SHA-256" },  // Specify the hash used with RSA-OAEP
+                    },
+                    true,
+                    ["encrypt"],  // Specify the operation that the imported key will be used for
+                );
+
+                const encryptedMessage = await window.crypto.subtle.encrypt(
+                    { name: "RSA-OAEP" },
+                    publicKey,
+                    encodedMessage
+                );
+
+                return encryptedMessage;
+            }
+            catch (err) {
+                console.error(err);
+                return null;
+            }
+        }
+
+
+        async function decryptMessage(encryptedMessage) {
+            const privateKeyRaw = await getPrivKey();
+            if (!privateKeyRaw) return alert("NO PRIVATE KEY");
+
+            // Correct algorithm to RSA-OAEP and import the private key
+            const privateKey = await window.crypto.subtle.importKey(
+                "jwk",
+                privateKeyRaw,
+                {
+                    name: "RSA-OAEP",
+                    hash: { name: "SHA-256" }  // Hash must match the one used in encrypting
+                },
+                true,
+                ["decrypt"]  // Correct operation for the private key
+            );
+
+            // Decrypt the message with the private key
+            const decryptedMessage = await window.crypto.subtle.decrypt(
+                { name: "RSA-OAEP" },
+                privateKey,
+                encryptedMessage
+            );
+
+            const decoder = new TextDecoder();
+            return decoder.decode(decryptedMessage);
+        }
+
+
+        // INITIAL THINGS
+        async function init() {
+            if (!localStorage.getItem('sessionid')) {
+                localStorage.setItem('sessionid', crypto.randomUUID());
+                const storedKey = await createAndStoreKey();
+                if (!storedKey) return alert("KEY ERROR!!!");
+            }
+        };
+
+        init();
+    </script>
+</head>
+
+<body>
+    <input type="text" id="txtinp">
+    <button onclick="demo()">send message</button>
+    <div id="displayDiv"></div>
+</body>
+
+</html>

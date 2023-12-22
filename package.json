@@ -1,0 +1,28 @@
+{
+  "name": "simpleencrypt",
+  "version": "1.0.0",
+  "description": " a simple encryption server/client prototype for ChatJS ",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ION606/simpleEncrypt.git"
+  },
+  "author": "ION606",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ION606/simpleEncrypt/issues"
+  },
+  "homepage": "https://github.com/ION606/simpleEncrypt#readme",
+  "dependencies": {
+    "aws-sdk": "^2.1524.0",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "express": "^4.18.2",
+    "libsodium-wrappers": "^0.7.13"
+  },
+  "type": "module"
+}
