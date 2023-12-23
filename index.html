@@ -151,6 +151,7 @@
                     if (!rCreate) return alert("ERROR");
                     publicKeyRaw = await sendToServer('getpubkey', otherUID);
                 }
+
                 const publicKeyJSON = JSON.parse(publicKeyRaw);
 
                 const encoder = new TextEncoder();
@@ -218,6 +219,11 @@
                 localStorage.setItem('sessionid', crypto.randomUUID());
                 const storedKey = await createAndStoreKey();
                 if (!storedKey) return alert("KEY ERROR!!!");
+            }
+            else if (!(await getPrivKey())) {
+                // LOG OUT HERE
+                localStorage.removeItem('sessionid');
+                console.warn("ADD LOG OUT LOGIC HERE");
             }
         };
 
